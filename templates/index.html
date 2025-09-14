@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{seo.title}}</title>
+    <meta name="description" content="{{seo.description}}">
+    <meta name="keywords" content="{{seo.keywords}}">
+    <link rel="icon" href="{{seo.favicon}}" type="image/x-icon">
+    
+    <!-- CSS Variables injectées dynamiquement -->
+    <style>
+        :root {
+            --primary-color: {{theme.primaryColor}};
+            --secondary-color: {{theme.secondaryColor}};
+            --accent-color: {{theme.accentColor}};
+            --bg-color: {{theme.backgroundColor}};
+            --text-color: {{theme.textColor}};
+            --font-family: {{theme.fontFamily}};
+            --border-radius: {{theme.borderRadius}};
+        }
+    </style>
+    
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    {{#if analytics.googleAnalytics}}
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{analytics.googleAnalytics}}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{analytics.googleAnalytics}}');
+    </script>
+    {{/if}}
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav">
+            <div class="nav-container">
+                <div class="nav-logo">
+                    <img src="{{header.logo}}" alt="{{header.logoAlt}}" class="logo">
+                </div>
+                <ul class="nav-menu">
+                    {{#each header.navigation}}
+                    <li class="nav-item">
+                        <a href="{{href}}" class="nav-link">{{label}}</a>
+                    </li>
+                    {{/each}}
+                </ul>
+                <div class="nav-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" style="background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('{{hero.backgroundImage}}');">
+        <div class="hero-content">
+            <h1 class="hero-title">{{hero.title}}</h1>
+            <p class="hero-subtitle">{{hero.subtitle}}</p>
+            {{#if hero.ctaButton}}
+            <a href="{{hero.ctaButton.href}}" class="btn btn-{{hero.ctaButton.style}}">{{hero.ctaButton.text}}</a>
+            {{/if}}
+        </div>
+    </section>
+
+    <!-- Dynamic Sections -->
+    {{#each sections}}
+    <section id="{{id}}" class="section section-{{type}}">
+        <div class="container">
+            <h2 class="section-title">{{title}}</h2>
+            
+            {{#if (eq type "text-image")}}
+            <div class="text-image-layout {{#if (eq layout "image-right")}}image-right{{else}}image-left{{/if}}">
+                <div class="text-content">
+                    <p>{{content}}</p>
+                </div>
+                <div class="image-content">
+                    <img src="{{image}}" alt="{{imageAlt}}" class="section-image">
+                </div>
+            </div>
+            {{/if}}
+            
+            {{#if (eq type "grid")}}
+            <div class="grid-layout">
+                {{#each items}}
+                <div class="grid-item">
+                    {{#if image}}<img src="{{image}}" alt="{{title}}" class="grid-image">{{/if}}
+                    <h3 class="grid-title">{{title}}</h3>
+                    <p class="grid-description">{{description}}</p>
+                    {{#if price}}<div class="grid-price">{{price}}</div>{{/if}}
+                </div>
+                {{/each}}
+            </div>
+            {{/if}}
+        </div>
+    </section>
+    {{/each}}
+
+    <!-- Contact Section -->
+    <section id="contact" class="section section-contact">
+        <div class="container">
+            <h2 class="section-title">{{contact.title}}</h2>
+            <div class="contact-layout">
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <h3>Adresse</h3>
+                        <p>{{contact.address.street}}<br>{{contact.address.city}}<br>{{contact.address.country}}</p>
+                    </div>
+                    <div class="contact-item">
+                        <h3>Téléphone</h3>
+                        <p><a href="tel:{{contact.phone}}">{{contact.phone}}</a></p>
+                    </div>
+                    <div class="contact-item">
+                        <h3>Email</h3>
+                        <p><a href="mailto:{{contact.email}}">{{contact.email}}</a></p>
+                    </div>
+                    <div class="contact-item">
+                        <h3>Horaires</h3>
+                        <p>Déjeuner: {{contact.hours.lunch}}<br>
+                           Dîner: {{contact.hours.dinner}}<br>
+                           Fermé: {{contact.hours.closed}}</p>
+                    </div>
+                </div>
+                <div class="contact-form">
+                    <form name="contact" method="POST" data-netlify="true">
+                        <div class="form-group">
+                            <input type="text" name="name" placeholder="Votre nom" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="email" name="email" placeholder="Votre email" required>
+                        </div>
+                        <div class="form-group">
+                            <textarea name="message" placeholder="Votre message" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Envoyer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-social">
+                    {{#each contact.socialMedia}}
+                    <a href="{{url}}" target="_blank" class="social-link social-{{platform}}">{{platform}}</a>
+                    {{/each}}
+                </div>
+                <div class="footer-links">
+                    {{#each footer.links}}
+                    <a href="{{href}}" class="footer-link">{{label}}</a>
+                    {{/each}}
+                </div>
+                <div class="footer-copyright">
+                    <p>{{footer.copyright}}</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript pour le menu mobile -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const navToggle = document.querySelector('.nav-toggle');
+            const navMenu = document.querySelector('.nav-menu');
+            
+            navToggle.addEventListener('click', function() {
+                navMenu.classList.toggle('active');
+            });
+            
+            // Smooth scrolling
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+    
+    {{#if analytics.facebookPixel}}
+    <!-- Facebook Pixel -->
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '{{analytics.facebookPixel}}');
+        fbq('track', 'PageView');
+    </script>
+    {{/if}}
+</body>
+</html>

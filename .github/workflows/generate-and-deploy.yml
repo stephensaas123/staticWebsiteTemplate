@@ -1,0 +1,355 @@
+# .github/workflows/generate-and-deploy.yml
+name: Generate and Deploy Sites
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'clients/**' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'clients/**' ]
+  workflow_dispatch:
+    inputs:
+      client_config:
+        description: 'Client config file (optional - if empty, generates all)'
+        required: false
+        type: string
+
+jobs:
+  generate-sites:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    steps:
+    - name: 📦 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: 📋 Install dependencies
+      run: npm ci
+
+    - name: 🏗️ Generate sites
+      run: |
+        if [ -n "${{ github.event.inputs.client_config }}" ]; then
+          npm run generate clients/${{ github.event.inputs.client_config }}
+        else
+          npm run generate:all
+        fi
+
+    - name: 📊 Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: generated-sites
+        path: output/
+        retention-days: 30
+
+    - name: 🚀 Deploy to Netlify (if main branch)
+      if: github.ref == 'refs/heads/main'
+      run: npm run deploy
+
+  validate-configs:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📦 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+        
+    - name: 📋 Install dependencies
+      run: npm ci
+      
+    - name: ✅ Validate configurations
+      run: npm run validate
+
+  create-netlify-sites:
+    needs: generate-sites
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📦 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 📥 Download generated sites
+      uses: actions/download-artifact@v4
+      with:
+        name: generated-sites
+        path: output/
+    
+    - name: 🌐 Create Netlify sites
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      run: |
+        for site_dir in output/*/; do
+          if [ -d "$site_dir" ]; then
+            site_name=$(basename "$site_dir")
+            echo "Deploying $site_name to Netlify..."
+            
+            # Utiliser Netlify CLI pour déployer
+            npx netlify-cli deploy \
+              --prod \
+              --dir="$site_dir" \
+              --site="$site_name" \
+              --auth="$NETLIFY_AUTH_TOKEN" \
+              --message="Auto-deploy from GitHub Actions"
+          fi
+        done
+
+---
+
+# .github/workflows/update-client-sites.yml  
+name: Update Client Site
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_name:
+        description: 'Nom du client'
+        required: true
+        type: string
+      config_updates:
+        description: 'Mises à jour JSON (optionnel)'
+        required: false
+        type: string
+
+jobs:
+  update-client:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📦 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: 📋 Install dependencies
+      run: npm ci
+
+    - name: 🔄 Update client configuration
+      run: |
+        client_file="clients/${{ github.event.inputs.client_name }}.json"
+        
+        if [ ! -f "$client_file" ]; then
+          echo "Creating new client configuration..."
+          npm run new:client -- --name="${{ github.event.inputs.client_name }}"
+        fi
+        
+        if [ -n "${{ github.event.inputs.config_updates }}" ]; then
+          echo "Applying configuration updates..."
+          echo '${{ github.event.inputs.config_updates }}' | jq . > temp_updates.json
+          jq -s '.[0] * .[1]' "$client_file" temp_updates.json > updated_config.json
+          mv updated_config.json "$client_file"
+          rm temp_updates.json
+        fi
+
+    - name: 🏗️ Generate updated site
+      run: npm run generate "clients/${{ github.event.inputs.client_name }}.json"
+
+    - name: 📤 Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git diff --staged --quiet || git commit -m "Update ${{ github.event.inputs.client_name }} configuration and site"
+        git push
+
+---
+
+# scripts/validate-config.js
+const Joi = require('joi');
+const fs = require('fs').promises;
+const path = require('path');
+const chalk = require('chalk');
+
+// Schéma de validation pour les configurations client
+const configSchema = Joi.object({
+  client: Joi.object({
+    name: Joi.string().required(),
+    slug: Joi.string().pattern(/^[a-z0-9-]+$/).required(),
+    domain: Joi.string().optional()
+  }).required(),
+  
+  seo: Joi.object({
+    title: Joi.string().required(),
+    description: Joi.string().required(),
+    keywords: Joi.string().allow(''),
+    favicon: Joi.string().default('/assets/favicon.ico')
+  }).required(),
+  
+  theme: Joi.object({
+    primaryColor: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).required(),
+    secondaryColor: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).required(),
+    accentColor: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).optional(),
+    backgroundColor: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).optional(),
+    textColor: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).optional(),
+    fontFamily: Joi.string().optional(),
+    borderRadius: Joi.string().optional()
+  }).required(),
+  
+  header: Joi.object({
+    logo: Joi.string().required(),
+    logoAlt: Joi.string().optional(),
+    navigation: Joi.array().items(
+      Joi.object({
+        label: Joi.string().required(),
+        href: Joi.string().required()
+      })
+    ).required()
+  }).required(),
+  
+  hero: Joi.object({
+    title: Joi.string().required(),
+    subtitle: Joi.string().optional(),
+    backgroundImage: Joi.string().optional(),
+    ctaButton: Joi.object({
+      text: Joi.string().required(),
+      href: Joi.string().required(),
+      style: Joi.string().valid('primary', 'secondary').default('primary')
+    }).optional()
+  }).required(),
+  
+  sections: Joi.array().items(
+    Joi.object({
+      id: Joi.string().required(),
+      type: Joi.string().valid('text-image', 'grid', 'text').required(),
+      title: Joi.string().required(),
+      content: Joi.string().when('type', {
+        is: 'text-image',
+        then: Joi.required(),
+        otherwise: Joi.optional()
+      }),
+      image: Joi.string().when('type', {
+        is: 'text-image',
+        then: Joi.optional(),
+        otherwise: Joi.forbidden()
+      }),
+      layout: Joi.string().valid('image-left', 'image-right').when('type', {
+        is: 'text-image',
+        then: Joi.optional(),
+        otherwise: Joi.forbidden()
+      }),
+      items: Joi.array().when('type', {
+        is: 'grid',
+        then: Joi.required(),
+        otherwise: Joi.forbidden()
+      })
+    })
+  ).optional(),
+  
+  contact: Joi.object({
+    title: Joi.string().required(),
+    address: Joi.object({
+      street: Joi.string().required(),
+      city: Joi.string().required(),
+      country: Joi.string().required()
+    }).required(),
+    phone: Joi.string().required(),
+    email: Joi.string().email().required(),
+    hours: Joi.object().optional(),
+    socialMedia: Joi.array().items(
+      Joi.object({
+        platform: Joi.string().required(),
+        url: Joi.string().uri().required()
+      })
+    ).optional()
+  }).required(),
+  
+  footer: Joi.object({
+    copyright: Joi.string().required(),
+    links: Joi.array().items(
+      Joi.object({
+        label: Joi.string().required(),
+        href: Joi.string().required()
+      })
+    ).optional()
+  }).required(),
+  
+  analytics: Joi.object({
+    googleAnalytics: Joi.string().optional(),
+    facebookPixel: Joi.string().optional()
+  }).optional()
+});
+
+async function validateConfig(configPath) {
+  try {
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const config = JSON.parse(configContent);
+    
+    const { error, value } = configSchema.validate(config, { 
+      abortEarly: false,
+      allowUnknown: true 
+    });
+    
+    if (error) {
+      console.error(chalk.red(`❌ Erreurs dans ${configPath}:`));
+      error.details.forEach(detail => {
+        console.error(chalk.red(`  - ${detail.path.join('.')}: ${detail.message}`));
+      });
+      return false;
+    }
+    
+    console.log(chalk.green(`✅ ${configPath} est valide`));
+    return true;
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Erreur lors de la lecture de ${configPath}:`), error.message);
+    return false;
+  }
+}
+
+async function validateAllConfigs() {
+  const clientsDir = path.join(__dirname, '../clients');
+  const configFiles = await fs.readdir(clientsDir);
+  const jsonFiles = configFiles.filter(file => file.endsWith('.json'));
+  
+  console.log(chalk.blue(`🔍 Validation de ${jsonFiles.length} configurations...\n`));
+  
+  let allValid = true;
+  
+  for (const configFile of jsonFiles) {
+    const configPath = path.join(clientsDir, configFile);
+    const isValid = await validateConfig(configPath);
+    if (!isValid) allValid = false;
+  }
+  
+  if (allValid) {
+    console.log(chalk.green('\n🎉 Toutes les configurations sont valides!'));
+  } else {
+    console.log(chalk.red('\n❌ Certaines configurations contiennent des erreurs'));
+    process.exit(1);
+  }
+}
+
+// CLI
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0) {
+    await validateAllConfigs();
+  } else {
+    const configPath = path.resolve(args[0]);
+    await validateConfig(configPath);
+  }
+}
+
+if (require.main === module) {
+  main().catch(console.error);
+}
+
+module.exports = { validateConfig, validateAllConfigs };

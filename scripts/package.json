@@ -1,0 +1,37 @@
+{
+  "name": "static-site-generator",
+  "version": "1.0.0",
+  "description": "Générateur automatisé de sites web statiques personnalisables",
+  "main": "scripts/generate-site.js",
+  "scripts": {
+    "generate": "node scripts/generate-site.js",
+    "generate:all": "node scripts/generate-site.js --all",
+    "dev": "node scripts/dev-server.js",
+    "deploy": "node scripts/deploy.js",
+    "new:client": "node scripts/create-client.js",
+    "validate": "node scripts/validate-config.js",
+    "optimize": "node scripts/optimize-images.js"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8",
+    "express": "^4.18.2",
+    "chokidar": "^3.5.3",
+    "sharp": "^0.32.6",
+    "simple-git": "^3.19.1",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "joi": "^17.9.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "static-site-generator",
+    "netlify",
+    "website",
+    "template",
+    "automation"
+  ],
+  "author": "Votre nom",
+  "license": "MIT"
+}
